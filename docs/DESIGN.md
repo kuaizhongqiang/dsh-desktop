@@ -207,14 +207,14 @@ dsh --profile web --host 127.0.0.1 --port <port>
 - dsh 产物：`npm install --prefix <resources>/dsh @deepseek-ai/dsh@0.1.0-rc.6` 安装产物（D6，含 Web UI dist）；
 - 均放入 `extraResources/`（asar 外），子进程直接以真实文件路径启动。
 
-体积量级预估（估算值，M4 实测后校准，国内网络下需关注）：
+体积量级预估（M4 本地实测回填，2026-08-17）：
 
 | 组成 | Full 版 | Slim 版 |
 |---|---|---|
-| Electron 运行时（含 Chromium） | ~180–220MB（解压） | 同左 |
+| Electron 运行时（含 Chromium） | ~220MB（解压） | 同左 |
 | 官方 Node.exe | ~30MB | 不打包 |
-| dsh 产物（子模块构建 或 npm 链） | ~150–250MB（估算；npm 链实测约 ≤100MB） | 不打包 |
-| **NSIS 安装包（压缩后）** | **~120–200MB（估算）** | **~80–120MB（估算）** |
+| dsh 产物（npm 链，含 node-pty/ripgrep 预编译二进制） | ~100MB（实测） | 不打包 |
+| **NSIS 安装包（压缩后，实测）** | **167.9MB** | **89.4MB** |
 | 首启额外下载 | 无 | Node zip ~30MB + dsh 全局包安装（磁盘占用另计） |
 
 > 说明：dsh 生产依赖规模为首启下载体验的关键变量，M1 实测后回填精确值。
