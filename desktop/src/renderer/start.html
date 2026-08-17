@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; connect-src 'self'">
+<title>dsh-desktop — 启动</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="start-body">
+  <main class="start-card">
+    <div class="logo" aria-hidden="true"><span class="logo-ring"></span><span class="logo-core"></span></div>
+    <h1>dsh-desktop</h1>
+    <p id="start-status">正在启动 dsh server…</p>
+    <div class="spinner" aria-label="加载中"></div>
+    <p class="muted" id="start-detail"></p>
+  </main>
+  <script type="module" src="start.js"></script>
+</body>
+</html>

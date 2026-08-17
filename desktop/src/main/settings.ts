@@ -1,0 +1,70 @@
+// Persistent settings. Lightweight JSON store under app.getPath('userData')
+// (default %APPDATA%\dsh-desktop, D12); atomic writes via temp file + rename.
+import { app } from 'electron'
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { DEFAULT_PORT } from './constants.js'
+
+export interface Settings {
+  /** Preferred dsh server port; 0 means "let the app pick a free port". */
+  port: number
+  /** Start with Windows (app.setLoginItemSettings). */
+  autoLaunch: boolean
+  /** Closing the window minimizes to tray instead of quitting. */
+  closeToTray: boolean
+  /** dsh data root override ('' = dsh default ~/.dsh). Passed as DSH_HOME. */
+  dataDir: string
+  /** npm/node mirror base URL ('' = official). */
+  mirrorUrl: string
+  /** Slim bootstrap: allow automatic downloads (requires explicit user confirm per step). */
+  autoDownload: boolean
+  /** Set true once the Slim bootstrap completed successfully. */
+  bootstrapDone: boolean
+}
+
+const DEFAULTS: Settings = {
+  port: DEFAULT_PORT,
+  autoLaunch: false,
+  closeToTray: true,
+  dataDir: '',
+  mirrorUrl: '',
+  autoDownload: true,
+  bootstrapDone: false,
+}
+
+let cache: Settings | null = null
+
+export function settingsPath(): string {
+  return join(app.getPath('userData'), 'settings.json')
+}
+
+export function loadSettings(): Settings {
+  if (cache) return cache
+  const merged = { ...DEFAULTS }
+  try {
+    const raw = JSON.parse(readFileSync(settingsPath(), 'utf8')) as Partial<Settings>
+    Object.assign(merged, raw)
+    // sanity clamp
+    if (!Number.isInteger(merged.port) || merged.port < 0 || merged.port > 65535) merged.port = DEFAULT_PORT
+  } catch {
+    // first run or corrupt file: use defaults
+  }
+  cache = merged
+  return merged
+}
+
+export function getSettings(): Settings {
+  return loadSettings()
+}
+
+export function saveSettings(patch: Partial<Settings>): Settings {
+  const next = { ...loadSettings(), ...patch }
+  if (!Number.isInteger(next.port) || next.port < 0 || next.port > 65535) next.port = DEFAULT_PORT
+  cache = next
+  const dir = app.getPath('userData')
+  mkdirSync(dir, { recursive: true })
+  const tmp = settingsPath() + '.tmp'
+  writeFileSync(tmp, JSON.stringify(next, null, 2), 'utf8')
+  renameSync(tmp, settingsPath())
+  return next
+}

@@ -1,0 +1,43 @@
+# Full variant: bundles official Node.exe + dsh npm-locked package (D6)
+appId: com.dshdesktop.app
+productName: dsh-desktop
+directories:
+  output: release/full
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+  - config.json
+  - preload/**/*
+  - assets/**/*
+  - "!**/*.map"
+extraResources:
+  - from: resources/node
+    to: node
+    filter: ["**/*"]
+  # electron-builder hard-excludes a copy source's ROOT node_modules (filter.js),
+  # so copy from the node_modules dir itself.
+  - from: resources/dsh/node_modules
+    to: dsh/node_modules
+    filter: ["**/*"]
+  - from: resources/variant-full.json
+    to: variant.json
+asar: true
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+  executableName: dsh-desktop
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: dsh-desktop
+  artifactName: ${productName}-full-${version}-setup.${ext}
+publish:
+  provider: github
+  owner: kuaizhongqiang
+  repo: dsh-desktop

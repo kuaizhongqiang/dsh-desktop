@@ -1,0 +1,35 @@
+{
+  "name": "dsh-desktop",
+  "version": "0.1.0",
+  "description": "Desktop client for DeepSeek Harness (dsh): embeds the dsh Web UI, manages a local dsh server, tray/log/settings desktop experience.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "out/main/index.js",
+  "author": "dsh-desktop contributors",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "dev": "electron .",
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepare:dsh": "node scripts/prepare-dsh.mjs",
+    "fetch:node": "node scripts/fetch-node.mjs",
+    "make:icon": "node scripts/make-icon.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "pack:full": "npm run build && electron-builder --config electron-builder.full.yml",
+    "pack:slim": "npm run build && electron-builder --config electron-builder.slim.yml",
+    "pack:full:dir": "npm run build && electron-builder --config electron-builder.full.yml --dir",
+    "pack:slim:dir": "npm run build && electron-builder --config electron-builder.slim.yml --dir"
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "electron": "^39.0.0",
+    "electron-builder": "^26.0.12",
+    "typescript": "^5.7.0"
+  }
+}

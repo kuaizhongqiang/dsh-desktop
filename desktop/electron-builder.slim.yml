@@ -1,0 +1,35 @@
+# Slim variant: minimal installer; first-run bootstrap installs Node/dsh on demand (D5/D11)
+appId: com.dshdesktop.app
+productName: dsh-desktop
+directories:
+  output: release/slim
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+  - config.json
+  - preload/**/*
+  - assets/**/*
+  - "!**/*.map"
+extraResources:
+  - from: resources/variant-slim.json
+    to: variant.json
+asar: true
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+  executableName: dsh-desktop
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: dsh-desktop
+  artifactName: ${productName}-slim-${version}-setup.${ext}
+publish:
+  provider: github
+  owner: kuaizhongqiang
+  repo: dsh-desktop
