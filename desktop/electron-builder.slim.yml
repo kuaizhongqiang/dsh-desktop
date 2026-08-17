@@ -33,3 +33,5 @@ publish:
   provider: github
   owner: kuaizhongqiang
   repo: dsh-desktop
+  channel: slim
+  draft: false

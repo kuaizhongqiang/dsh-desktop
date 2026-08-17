@@ -4,6 +4,7 @@ import { app } from 'electron'
 import updaterPkg from 'electron-updater'
 import { APP_ID } from './constants.js'
 import { logs } from './log-store.js'
+import { detectVariant } from './runtime.js'
 
 const { autoUpdater } = updaterPkg
 
@@ -45,6 +46,10 @@ export function initUpdater(): void {
     autoUpdater.autoDownload = false
     autoUpdater.autoInstallOnAppQuit = true
     autoUpdater.forceDevUpdateConfig = false
+    // Per-variant update channel (full.yml / slim.yml) so both variants can
+    // share one GitHub release without clobbering each other's update feed.
+    const variant = detectVariant()
+    autoUpdater.channel = variant === 'full' ? 'full' : variant === 'slim' ? 'slim' : 'latest'
     autoUpdater.on('checking-for-update', () => set({ phase: 'checking' }))
     autoUpdater.on('update-available', (info) => {
       set({ phase: 'available', version: info.version })
