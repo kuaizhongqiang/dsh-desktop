@@ -1,6 +1,6 @@
 # dsh-desktop 设计文档（Paper）
 
-> 状态：v0.3（按 2026-08-17 复审意见修订，见 [docs/DESIGN-REVIEW.md](DESIGN-REVIEW.md)；复审记录见 issue #32）
+> 状态：v0.4（按 2026-08-17 复审意见修订，见 [docs/DESIGN-REVIEW.md](DESIGN-REVIEW.md)；复审记录见 issue #32；v0.4 更新 D6 决策）
 > 适用范围：dsh-desktop 桌面客户端项目
 > 关联仓库：[kuaizhongqiang/dsh-desktop](https://github.com/kuaizhongqiang/dsh-desktop)（本仓库），子模块 `deepseek-harness/`（上游 [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)，只读，零修改）
 
@@ -97,7 +97,7 @@ dsh 本身是面向"命令行 + 浏览器"形态的产品。本项目为其补�
 | D3 | UI 策略 | **内嵌 dsh 现有 Web UI** ✅ | dsh 零修改；标准窗口壳包裹 |
 | D4 | 目标平台 | **Windows 优先** ✅ | 架构预留跨平台 |
 | D5 | 运行时策略 | **双版本** ✅ | Full 版捆绑官方 Node.exe；Slim 版首启引导（见 §6） |
-| D6 | dsh 来源 | **子模块原样构建**（复核中，见 §10.2 决策点）✅ | 锁定 commit `47f9438`；npm 链完整性的新发现见 §5.1 |
+| D6 | dsh 来源 | **npm 锁定包**（`@deepseek-ai/dsh@0.1.0-rc.6`，双版本统一）✅ | 2026-08-17 决策；npm 链自带 Web UI（已核验）；子模块保留为锁定/参考/审计面（§5.1） |
 | D7 | 代码形态 | **同一套代码，双打包配置** ✅ | electron-builder 两套配置产物 |
 | D8 | 分发 | **NSIS 安装包 + electron-updater + 代码签名** ✅ | 签名证书与更新源待提供（见 §10.1） |
 | D9 | 窗口外观 | **标准窗口壳** ✅ | 不做无边框自定义标题栏 |
@@ -139,26 +139,25 @@ dsh 本身是面向"命令行 + 浏览器"形态的产品。本项目为其补�
   2. `git ls-files --stage deepseek-harness` 记录的指针 hash 与锁定期望值一致；
   3. 构建脚本在构建前执行上述校验，违规即失败。
 
-**npm 版 vs 子模块版（复审修正）**：
+**npm 版 vs 子模块版（复审修正 + D6 决策）**：
 
 - v0.2 曾写"npm 版 Web UI dist 不保证随包分发"——**该结论错误**（查证对象是 13KB 的 `dsh-host-frontend-static` 服务端包，dist 实际在 `dsh-web-frontend` 包内，npm 发布版 4.41MB 完整包含）；
 - 正确结论：**npm 安装链自带完整 Web UI**（registry 核验 + `resolveDistIndex()` 走包内 `require.resolve`），Slim 版全局安装无 UI 断点；
-- 选择子模块构建的**当前理由**：① 版本精确锁定（子模块 master 根包 rc.5，与 npm latest rc.6 不同版本线，双版本需统一，见 §10.2 决策点）；② 不依赖上游发布节奏与质量；③ 子模块同时是代码参考与审计面。
-- **替代路径（待决策）**：Full 版也可直接 `npm install @deepseek-ai/dsh@<锁定版本>` 打包（跳过 monorepo 全量构建，M1 大幅简化），子模块保留作锁定与参考——见 §10.2 决策点。
+- **D6 决策（2026-08-17）**：Full/Slim **统一使用 npm 锁定包** `@deepseek-ai/dsh@0.1.0-rc.6` 作为 dsh 产物来源——双版本跑同一 dsh 版本，M1 免 monorepo 全量构建；
+- 子模块 `deepseek-harness/` **保留**，角色降为：**版本锁定参照、源码审计面、上游变更跟踪**（升级 dsh 时先在子模块 review 变更再升 npm 版本）；零修改校验（CI）继续对子模块生效。
 
-### 5.2 构建流程（子模块路径，原样构建，零修改）
+### 5.2 dsh 产物获取（npm 锁定版）
 
 ```
-cd deepseek-harness
-corepack enable            # 或升级 pnpm 至 11.7.0（packageManager 要求）
-pnpm install               # workspace 全量安装（Node ≥22.19）
-pnpm run build             # tsc + tsdown 产出 lib/（host + client 双面）
-pnpm run build:web         # vite 构建前端 dist/
+# 产物来源：npm 锁定包（D6，双版本统一）
+npm view @deepseek-ai/dsh@0.1.0-rc.6        # 核验版本存在
+npm install --prefix <resources>/dsh @deepseek-ai/dsh@0.1.0-rc.6   # Full 版：安装到 extraResources
+# Slim 版：首启 `npm i -g @deepseek-ai/dsh@0.1.0-rc.6`（用户确认，见 §6.3）
 ```
 
-- 构建产物（`apps/cli/lib` + 各包 `lib` + `apps/web/dist` + 生产依赖 `node_modules`）作为 **Full 版（子模块路径）** 的打包输入；
-- 构建产物目录**加入 `.gitignore`**，不入库；
-- 若 §10.2 决策点选择 npm 路径，本节替换为 `npm install @deepseek-ai/dsh@<锁定版本>` 拉取产物，构建脚本不再需要。
+- 产物（CLI lib + 依赖树 + `dsh-web-frontend/dist` Web UI）由 npm 链完整提供（§4.1 已核验）；
+- 升级流程：`npm view @deepseek-ai/dsh versions` 确认新版本 → 更新锁定版本（package.json + 文档 + CI 校验）→ 双版本同步升级；
+- 原"子模块 pnpm 全量构建"流程**不再使用**（保留于 git 历史作参考）。
 
 ### 5.3 dsh server 启动参数与就绪判定（复审 1 修订）
 
@@ -187,9 +186,9 @@ dsh --profile web --host 127.0.0.1 --port <port>
 | 安装包 | 最小（不含 Node、不含 dsh 产物） | 大（捆绑官方 Node.exe + dsh 产物） |
 | 首启行为 | 环境检测：Node ≥22.19 是否存在 | 直接启动，零检测 |
 | 环境缺失处理 | **引导安装**：Node 缺失→引导下载/安装；dsh 缺失→首启 `npm i -g @deepseek-ai/dsh@<锁定版本>`（用户确认权限） | 不适用 |
-| 子进程启动 | 系统 `node` + 全局 `dsh` 命令 | 捆绑 `node.exe` + 随包 dsh 产物 |
-| **Web UI 供给（复审 2）** | **npm 链自带**（`dsh-web-frontend` dist 随包，已验证）；**无断点** | 随包产物（子模块构建 或 npm 包，§10.2 决策点） |
-| **dsh 版本一致性（复审 2）** | npm `0.1.0-rc.6`（锁定） | 子模块 master（rc.5 线）或同 npm 锁定版——**待决策统一** |
+| 子进程启动 | 系统 `node` + 全局 `dsh` 命令 | 捆绑 `node.exe` + 随包 dsh 产物（npm 锁定包） |
+| **Web UI 供给（复审 2）** | **npm 链自带**（`dsh-web-frontend` dist 随包，已验证）；**无断点** | 随包 npm 链自带（同源） |
+| **dsh 版本一致性（D6）** | npm `0.1.0-rc.6`（锁定） | **同一 npm 锁定版** `0.1.0-rc.6` ✅ 已统一 |
 | 自动更新/签名 | 是 | 是 |
 
 ### 6.1 共用代码
@@ -205,7 +204,7 @@ dsh --profile web --host 127.0.0.1 --port <port>
 打包输入：
 
 - 官方 Node 二进制（Windows x64，22.22.x LTS 线，满足 engines）——`scripts/fetch-node.ps1` 下载，校验 SHA256；
-- dsh 产物（子模块构建产物 或 npm 包安装产物，§10.2 决策点）；
+- dsh 产物：`npm install --prefix <resources>/dsh @deepseek-ai/dsh@0.1.0-rc.6` 安装产物（D6，含 Web UI dist）；
 - 均放入 `extraResources/`（asar 外），子进程直接以真实文件路径启动。
 
 体积量级预估（估算值，M4 实测后校准，国内网络下需关注）：
@@ -275,7 +274,7 @@ dsh --profile web --host 127.0.0.1 --port <port>
 
 ```
 dsh-desktop/
-├── deepseek-harness/            # 子模块（只读，仅构建/参考）
+├── deepseek-harness/            # 子模块（只读，锁定/参考/审计面）
 ├── desktop/                     # ★ 桌面 App（全部新增）
 │   ├── src/
 │   │   ├── main/
@@ -290,7 +289,7 @@ dsh-desktop/
 │   │   ├── preload/             # contextBridge（最小 IPC 面）
 │   │   └── renderer/            # 启动页 / 崩溃提示页 / 日志面板 / 设置页 / 引导页
 │   ├── scripts/
-│   │   ├── build-dsh.ps1        # 构建/拉取 dsh 产物（路径按 §10.2 决策）
+│   │   ├── build-dsh.ps1        # 拉取 dsh npm 锁定包到 resources（D6）
 │   │   ├── fetch-node.ps1       # 下载官方 Node.exe（Full）
 │   │   └── pack.ps1             # 双版本打包入口
 │   ├── build/                   # electron-builder 双配置（full/slim）
@@ -308,7 +307,7 @@ dsh-desktop/
 
 | 里程碑 | 名称 | 核心交付 | 验收标准（功能级） |
 |---|---|---|---|
-| **M1** | 最小可用 | 脚手架 + dsh 产物获取（构建/拉取）+ spawn dsh → 窗口加载 Web UI | 安装/开发运行后双击，窗口出现并可使用 dsh Web UI |
+| **M1** | 最小可用 | 脚手架 + dsh 产物获取（npm 锁定包拉取）+ spawn dsh → 窗口加载 Web UI | 安装/开发运行后双击，窗口出现并可使用 dsh Web UI |
 | **M2** | 桌面能力 | 托盘、单实例、端口 fallback、日志面板、崩溃提示页 | 上述功能逐项可操作、可验证（含 §7.1 流程） |
 | **M3** | 设置与引导 | 设置页、开机自启、Slim 环境检测与引导安装 | Slim 版在无 Node 机器上可完成引导并启动 |
 | **M4** | 分发 | Full/Slim 双打包、自动更新、签名、发布流水线 | 两个安装包产出，更新链路可走通 |
@@ -327,7 +326,7 @@ dsh-desktop/
 ### 9.2 排期与关键路径（待补）
 
 - 时间与人力估算需团队上下文（人数/投入），**暂记为待补**；M1 完成后按实测数据补排期。
-- 已识别的关键路径：M1 的 dsh 产物获取（构建 vs npm 拉取，§10.2 决策后固化）+ spawn 就绪判定；M3 的 Slim 引导（依赖 §10.2 决策）。
+- 已识别的关键路径：M1 的 dsh 产物获取（npm 锁定包，D6 已定）+ spawn 就绪判定；M3 的 Slim 引导。
 
 ---
 
@@ -346,19 +345,20 @@ dsh-desktop/
 | Slim 版 dsh 缺失策略 | **首启 `npm i -g @deepseek-ai/dsh@<锁定版本>`（用户确认权限）**，不随包携带 | 项目方（D11） | 2026-08-17 |
 | 数据目录默认值 | **`%APPDATA%\dsh-desktop`（userData）**，设置页可改 | 项目方（D12） | 2026-08-17 |
 | 下载镜像支持 | **官方默认 + 设置页可配置镜像地址**（仅 https） | 项目方（D13） | 2026-08-17 |
-| **（复审新增）Full 版 dsh 来源**：子模块构建 vs npm 锁定包 | **待决策**。倾向：Full 与 Slim 统一用 npm 锁定版（同一 dsh 版本、M1 免 monorepo 构建），子模块保留为锁定/参考；若坚持源码构建则双版本版本线不一致（rc.5 vs rc.6）需另定同步策略 | 待项目方 | — |
-| **（复审新增）Slim/Full dsh 版本一致性** | 随上一项：统一 npm 锁定版则天然一致；否则需定义两版本对齐机制 | 待项目方 | — |
+| **（复审新增）Full 版 dsh 来源**：子模块构建 vs npm 锁定包 | **npm 锁定包 `@deepseek-ai/dsh@0.1.0-rc.6`（双版本统一）** ✅ | 项目方（D6） | 2026-08-17 |
+| **（复审新增）Slim/Full dsh 版本一致性** | 已统一：双版本均锁定 npm `0.1.0-rc.6`；升级走 §5.2 流程 | 项目方 | 2026-08-17 |
 
 ### 10.3 风险登记
 
 | 风险 | 影响 | 缓解 |
 |---|---|---|
-| dsh `build:web` 依赖完整 workspace 安装（网络/磁盘） | 构建失败 | 若选 npm 路径则消除（§10.2）；否则 CI/脚本固化命令 + 缓存 |
-| pnpm 版本不符（本机 11.4 vs 要求 11.7） | 安装/构建告警或失败 | `corepack` 对齐；脚本内校验（npm 路径则无关） |
+| dsh `build:web` 依赖完整 workspace 安装（网络/磁盘） | 构建失败 | **已消除**（D6：改用 npm 锁定包，无 monorepo 构建） |
+| pnpm 版本不符（本机 11.4 vs 要求 11.7） | 安装/构建告警或失败 | **已消除**（D6：无 pnpm 构建路径）；子模块仅作参考不构建 |
 | dsh 生产依赖规模大 → 首启下载/安装包体积超预期 | 体验差 | M1 实测回填 §6.2 体积表；npm 链实测约 ≤100MB（估算） |
 | **（复审 1）`--port 0` 端口盲区** | 无法获知实际端口 | **已消除**：改用主进程预申请空闲端口（§5.3） |
 | **（复审 2）Slim Web UI 供给** | Slim 装全局 dsh 后无 UI | **已排除**：npm 链自带 `dsh-web-frontend/dist`（registry 核验），M1 实测确认 |
-| **（复审 2/10.2）双版本 dsh 版本不一致**（rc.5 vs rc.6） | 行为差异、排障混乱 | 决策统一为同一 npm 锁定版（§10.2 决策点） |
+| **（复审 2）双版本 dsh 版本不一致**（rc.5 vs rc.6） | 行为差异、排障混乱 | **已消除**（D6：双版本统一 npm `0.1.0-rc.6`） |
+| npm 锁定包升级时上游破坏性变更 | 双版本行为突变 | 升级前在子模块 review 对应变更（§5.1），锁定版本升级走评审 |
 | Windows 下子进程清理不彻底（僵尸进程） | 端口/资源残留 | `taskkill /T /F` 兜底 + 启动前端口预检 |
 | Slim 引导下载源网络受限 | 首启体验差 | 镜像配置 + 手动指引兜底（D13） |
 | dsh 上游变更（submodule 指针漂移） | 行为不一致 | 锁定 commit + CI 零修改校验（§5.1） |
