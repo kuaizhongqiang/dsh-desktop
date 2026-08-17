@@ -34,4 +34,4 @@ publish:
   owner: kuaizhongqiang
   repo: dsh-desktop
   channel: slim
-  draft: false
+  releaseType: release
