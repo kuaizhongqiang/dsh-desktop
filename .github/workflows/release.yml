@@ -46,7 +46,7 @@ jobs:
       - name: Fetch official Node (Full)
         run: node scripts/fetch-node.mjs
 
-      - name: Smoke: bundled dsh boots and serves the Web UI
+      - name: "Smoke: bundled dsh boots and serves the Web UI"
         run: node scripts/smoke.mjs --dsh resources/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js
 
       - name: Package Full (NSIS)

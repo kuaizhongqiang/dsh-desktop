@@ -41,5 +41,5 @@ jobs:
       - name: Prepare dsh (npm-locked package)
         run: node scripts/prepare-dsh.mjs --prefix .ci-dsh
 
-      - name: Smoke: dsh boots and serves the Web UI
+      - name: "Smoke: dsh boots and serves the Web UI"
         run: node scripts/smoke.mjs --dsh .ci-dsh/node_modules/@deepseek-ai/dsh/lib/bin.js
