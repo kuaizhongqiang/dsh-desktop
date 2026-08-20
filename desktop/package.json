@@ -1,6 +1,6 @@
 {
   "name": "dsh-desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Desktop client for DeepSeek Harness (dsh): embeds the dsh Web UI, manages a local dsh server, tray/log/settings desktop experience.",
   "license": "MIT",
   "private": true,
@@ -27,7 +27,7 @@
     "electron-updater": "^6.6.2"
   },
   "devDependencies": {
-    "@types/node": "^22.10.0",
+    "@types/node": "^22.20.1",
     "electron": "^39.0.0",
     "electron-builder": "^26.0.12",
     "typescript": "^5.7.0"

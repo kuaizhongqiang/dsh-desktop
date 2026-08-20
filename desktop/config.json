@@ -1,5 +1,5 @@
 {
-  "dshVersion": "0.1.0-rc.6",
+  "dshVersion": "0.1.0-rc.8",
   "nodeVersion": "22.22.1",
   "nodeDistBase": "node-v22.22.1-win-x64",
   "nodeDistUrl": "https://nodejs.org/dist/v22.22.1/node-v22.22.1-win-x64.zip",
