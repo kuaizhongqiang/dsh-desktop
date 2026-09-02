@@ -10,7 +10,7 @@
 // Usage: node scripts/smoke.mjs [--dsh <path-to-bin.js>]
 import { spawn, execFileSync } from 'node:child_process'
 import { createServer } from 'node:net'
-import { existsSync, mkdtempSync, openSync, readFileSync, closeSync } from 'node:fs'
+import { existsSync, openSync, readFileSync, closeSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -32,16 +32,20 @@ async function ensureDshEntry() {
     }
     return dshArg
   }
-  // Auto-install the pinned dsh into a temp prefix (self-contained local/CI run).
-  const prefix = mkdtempSync(join(tmpdir(), 'dsh-smoke-prefix-'))
+  // Auto-install the pinned dsh into a STABLE dir (desktop/.ci-dsh) so CI can
+  // cache it across runs (a cold full-tree install takes 4-10+ min); reuse when
+  // already present. Env override: DSH_SMOKE_PREFIX.
+  const prefix = process.env.DSH_SMOKE_PREFIX ?? join(root, '.ci-dsh')
   const bin = join(prefix, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
   if (!existsSync(bin)) {
-    console.log(`[smoke] installing @deepseek-ai/dsh@${dshVersion} (npm, temp prefix)…`)
+    console.log(`[smoke] installing @deepseek-ai/dsh@${dshVersion} (npm, prefix=${prefix})…`)
     execFileSync(isWin ? 'npm.cmd' : 'npm', ['install', '--no-save', '--no-audit', '--no-fund', '--prefix', prefix, `@deepseek-ai/dsh@${dshVersion}`], {
-      // CI cold cache can take several minutes for the full dsh dep tree
-      // (native modules like node-pty); never kill it early.
-      stdio: 'inherit', windowsHide: true, shell: isWin, timeout: 600_000,
+      // First CI run after a dsh bump is a cold full-tree install (4-10+ min on
+      // slow runners); desktop/.ci-dsh is cached by CI afterwards. Never kill early.
+      stdio: 'inherit', windowsHide: true, shell: isWin, timeout: 900_000,
     })
+  } else {
+    console.log(`[smoke] reusing dsh install at ${prefix}`)
   }
   return bin
 }

@@ -73,7 +73,8 @@ if (!gotLock) {
     // Paint the connect page immediately ("检测中…"), then connect() either
     // navigates to the shared dsh UI or keeps/steps the connect page.
     showConnectPage(win)
-    const res = await controller.connect()
-    if (res.ok) void checkForUpdates()
+    // update checks run regardless of server state (npm registry / GitHub feed)
+    void checkForUpdates()
+    await controller.connect()
   }
 }

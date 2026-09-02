@@ -29,6 +29,17 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/package-lock.json
 
+      # Smoke installs @deepseek-ai/dsh@<config.dshVersion> into desktop/.ci-dsh
+      # (a cold full-tree install takes 4-10+ min). Cache it keyed on config.json
+      # so only dsh version bumps invalidate it.
+      - name: Cache smoke dsh install
+        uses: actions/cache@v4
+        with:
+          path: desktop/.ci-dsh
+          key: dsh-smoke-${{ hashFiles('desktop/config.json') }}
+          restore-keys: |
+            dsh-smoke-
+
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 

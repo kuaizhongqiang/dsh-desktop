@@ -14,7 +14,7 @@ interface ConnectState {
 interface ActionResult { ok: boolean; url?: string; error?: string }
 
 interface DshApi {
-  getState(): Promise<{ appVersion: string; connect: ConnectState; launcherPath: string; settings: Settings; updateEnabled: boolean }>
+  getState(): Promise<{ appVersion: string; connect: ConnectState; launcherPath: string; settings: Settings; updateEnabled: boolean; updateMode: 'github' | 'npm' }>
   onEvent(cb: (ev: unknown) => void): () => void
   getSettings(): Promise<Settings>
   setSettings(p: Partial<Settings>): Promise<Settings>
@@ -170,10 +170,24 @@ function initSettingsView(): void {
     if (dir) $<HTMLInputElement>('set-launcher').value = dir
   })
   $('btn-update-check').addEventListener('click', () => void window.dshApi.checkUpdates())
-  $('btn-update-download').addEventListener('click', () => void window.dshApi.downloadUpdate())
+  $('btn-update-download').addEventListener('click', () => {
+    if (updateMode === 'npm') {
+      if (confirm(`将关闭应用并通过 npm 更新到 ${updateVersion}，更新完成后自动重启。继续？`)) {
+        void window.dshApi.downloadUpdate()
+      }
+    } else {
+      void window.dshApi.downloadUpdate()
+    }
+  })
   $('btn-update-install').addEventListener('click', () => void window.dshApi.installUpdate())
+  void window.dshApi.getState().then((s) => {
+    updateMode = s.updateMode
+    renderUpdateStatus()
+  })
   renderUpdateStatus()
 }
+
+let updateMode: 'github' | 'npm' = 'github'
 
 function renderUpdateStatus(): void {
   const el = $('update-status')
@@ -182,11 +196,20 @@ function renderUpdateStatus(): void {
   const map: Record<string, string> = {
     idle: '未检查', checking: '检查中…', 'not-available': '已是最新版本',
     available: `发现新版本 ${updateVersion}`, downloaded: `更新已下载（${updateVersion}）`,
+    updating: '正在更新，应用将自动关闭并重启…',
     error: '更新检查失败',
   }
   el.textContent = map[lastUpdatePhase] ?? lastUpdatePhase
-  dl.hidden = lastUpdatePhase !== 'available'
-  inst.hidden = lastUpdatePhase !== 'downloaded'
+  if (updateMode === 'npm') {
+    // npm channel: one click does install + restart (downloadUpdate performs it)
+    dl.textContent = '立即更新并重启（npm）'
+    dl.hidden = lastUpdatePhase !== 'available'
+    inst.hidden = true
+  } else {
+    dl.textContent = '下载更新'
+    dl.hidden = lastUpdatePhase !== 'available'
+    inst.hidden = lastUpdatePhase !== 'downloaded'
+  }
 }
 
 // ── global wiring ──
@@ -210,7 +233,11 @@ function init(): void {
       if (e.status.version) updateVersion = e.status.version
       lastUpdatePhase = e.status.phase
       renderUpdateStatus()
-      $('foot-update').textContent = lastUpdatePhase === 'downloaded' ? `更新就绪 ${updateVersion}` : ''
+      const foot = $('foot-update')
+      if (lastUpdatePhase === 'downloaded') foot.textContent = `更新就绪 ${updateVersion}，可在设置页重启安装`
+      else if (lastUpdatePhase === 'available') foot.textContent = `发现新版本 ${updateVersion}（设置页可更新）`
+      else if (lastUpdatePhase === 'updating') foot.textContent = '正在更新…'
+      else foot.textContent = ''
     }
   })
   $('btn-logs').addEventListener('click', () => void window.dshApi.openView('log'))

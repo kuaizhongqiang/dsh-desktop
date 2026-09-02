@@ -4,7 +4,7 @@ import { app, dialog, ipcMain } from 'electron'
 import type { ShellController } from './controller.js'
 import { getSettings, saveSettings } from './settings.js'
 import { logs } from './log-store.js'
-import { checkForUpdates, downloadUpdate, installUpdate, updaterEnabled, onUpdateStatus } from './updater.js'
+import { checkForUpdates, downloadUpdate, installUpdate, onUpdateStatus, updateMode } from './updater.js'
 import { openView, broadcastEvent } from './windows.js'
 
 export interface AppState {
@@ -13,6 +13,7 @@ export interface AppState {
   launcherPath: string
   settings: ReturnType<typeof getSettings>
   updateEnabled: boolean
+  updateMode: ReturnType<typeof updateMode>
 }
 
 export function registerIpc(controller: ShellController, onQuit: () => void): void {
@@ -21,7 +22,8 @@ export function registerIpc(controller: ShellController, onQuit: () => void): vo
     connect: controller.getState(),
     launcherPath: controller.launcherPath(),
     settings: getSettings(),
-    updateEnabled: updaterEnabled(),
+    updateEnabled: true,
+    updateMode: updateMode(),
   }))
 
   ipcMain.handle('settings:get', () => getSettings())

@@ -17,6 +17,7 @@ desktop/out/
 desktop/dist/
 desktop/release/
 desktop/build/artifacts/
+desktop/.ci-dsh/
 .verify-dsh/
 
 # 环境与密钥
