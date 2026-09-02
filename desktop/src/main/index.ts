@@ -50,12 +50,24 @@ if (!gotLock) {
     registerIpc(controller, () => app.quit())
     logs.info('app', `dsh-desktop starting (v${app.getVersion()}) — pure shell over the shared dsh server`)
     initUpdater()
+
+    // Tray window helpers: restore from minimized, then show+focus.
+    const showMainWindow = (): void => {
+      const win = getMainWindow()
+      if (!win || win.isDestroyed()) return
+      if (win.isMinimized()) win.restore()
+      win.show()
+      win.focus()
+    }
+
     createTray(controller, {
-      showMain: () => getMainWindow()?.show(),
+      showMain: showMainWindow,
       toggleMain: () => {
         const win = getMainWindow()
-        if (win && win.isVisible()) win.hide()
-        else getMainWindow()?.show()
+        if (!win || win.isDestroyed()) return
+        // visible AND not minimized → hide to tray; otherwise show/restore
+        if (win.isVisible() && !win.isMinimized()) win.hide()
+        else showMainWindow()
       },
       startServer: () => void controller.start(),
       stopServer: () => void controller.stop(),
@@ -70,6 +82,15 @@ if (!gotLock) {
 
   async function boot(): Promise<void> {
     const win = createMainWindow()
+    // Close-to-tray: closing the window hides it instead of destroying it, so
+    // the tray can always re-show it. A real quit bypasses this (before-quit
+    // sets reallyQuit, and closeToTray=false quits via window-all-closed).
+    win.on('close', (e) => {
+      if (getSettings().closeToTray && !reallyQuit) {
+        e.preventDefault()
+        win.hide()
+      }
+    })
     // Paint the connect page immediately ("检测中…"), then connect() either
     // navigates to the shared dsh UI or keeps/steps the connect page.
     showConnectPage(win)
