@@ -41,10 +41,8 @@ jobs:
           gh release delete "$env:GITHUB_REF_NAME" --yes 2>$null
           exit 0
 
-      - name: Build app + icon
-        run: |
-          npm run build
-          npm run make:icon
+      - name: Build app
+        run: npm run build
 
       - name: "Smoke: shared-server protocol (launch-token auth)"
         run: node scripts/smoke.mjs

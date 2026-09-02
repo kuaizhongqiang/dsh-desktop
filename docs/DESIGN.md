@@ -120,7 +120,7 @@ src/main/
 └── log-store.ts   环形缓冲日志
 src/renderer/      ui.html + app.ts（connect / log / settings 三个视图）+ style.css
 preload/           contextBridge（dshApi：最小调用面）
-scripts/           build.mjs / smoke.mjs / install-plugins.mjs / make-icon.mjs
+scripts/           build.mjs / smoke.mjs / install-plugins.mjs / publish-npm.mjs
 dsh-plugins/       子模块（插件合集，安装源）
 deepseek-harness/  子模块（上游参考，只读）
 ```

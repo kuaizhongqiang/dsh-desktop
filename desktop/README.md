@@ -24,9 +24,9 @@ npm i -g @kuaizhongqiang/dsh-desktop && dsh-desktop
 src/main/      Electron 主进程（connect 探测/token 认证 / launcher 委托 / 托盘 / 设置 / 日志 / 更新）
 src/renderer/  UI（连接页 / 日志 / 设置）
 preload/       contextBridge（最小 IPC 面）
-scripts/       build / smoke / install-plugins / make-icon
-build/         electron-builder 资源（icon）
-assets/        运行时图标（窗口/托盘）
+scripts/       build / smoke / install-plugins / publish-npm
+build/         electron-builder 资源（icon，dsh 官方鲸鱼）
+assets/        运行时图标（窗口/托盘，dsh 官方鲸鱼）
 dsh-plugins/   插件合集子模块（../dsh-plugins）
 ```
 
@@ -37,7 +37,6 @@ dsh-plugins/   插件合集子模块（../dsh-plugins）
 ```sh
 git submodule update --init --recursive
 npm install              # 安装依赖（含 Electron）
-npm run make:icon        # 生成图标（首次）
 npm run build            # tsc + 静态资源拷贝到 out/
 npm run dev              # 启动 Electron（连接共享 server；无 server 时显示连接页）
 npm run smoke            # 无 GUI 冒烟：验证 dsh 启动令牌协议（401→token→303→RPC 认证）

@@ -1,6 +1,6 @@
 {
   "name": "@kuaizhongqiang/dsh-desktop",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Desktop shell for DeepSeek Harness (dsh): a pure Electron shell over the shared dsh Web UI. Never spawns dsh — it connects to the server started by dsh-launcher / dsh-vscode / `dsh web` (whoever started first owns it). Windows-only.",
   "license": "MIT",
   "private": true,
@@ -20,7 +20,6 @@
     "dev": "electron .",
     "build": "node scripts/build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "make:icon": "node scripts/make-icon.mjs",
     "smoke": "node scripts/smoke.mjs",
     "plugins:install": "node scripts/install-plugins.mjs",
     "pack": "npm run build && electron-builder --config electron-builder.yml",

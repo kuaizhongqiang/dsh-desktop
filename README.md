@@ -64,7 +64,6 @@ dsh-launcher   dsh web      dsh-vscode    dsh-desktop
 git submodule update --init --recursive   # deepseek-harness + dsh-plugins 子模块
 cd desktop
 npm install
-npm run make:icon            # 生成图标（首次）
 npm run build                # tsc + 静态资源
 npm run dev                  # 启动 Electron（连接本机共享 server，需先有 dsh 在跑）
 npm run smoke                # 无 GUI 冒烟：验证 dsh 启动令牌协议 + Web UI
