@@ -5,7 +5,17 @@ DeepSeek Harness（dsh）的 Windows 桌面**纯壳**客户端：用 Electron �
 `dsh web` 三者中**先启动的一端**持有），与浏览器（web）、VSCode 扩展三端同步。
 
 > 📄 完整方案见 [docs/DESIGN.md](docs/DESIGN.md)
-> 📦 发布：[GitHub Releases](https://github.com/kuaizhongqiang/dsh-desktop/releases)
+> 📦 发布：[GitHub Releases](https://github.com/kuaizhongqiang/dsh-desktop/releases)（NSIS 安装包）
+> 📦 npm：[`@kuaizhongqiang/dsh-desktop`](https://www.npmjs.com/package/@kuaizhongqiang/dsh-desktop)（`npx @kuaizhongqiang/dsh-desktop` 直接运行，Windows）
+
+## 安装
+
+```sh
+# npm（Windows；安装时下载 electron 二进制，npm ≥ 11.16 需 allow-scripts electron）
+npx @kuaizhongqiang/dsh-desktop
+npm i -g @kuaizhongqiang/dsh-desktop && dsh-desktop
+# 或下载 NSIS 安装包：GitHub Releases
+```
 
 ## 三端同步模型
 

@@ -2,6 +2,22 @@
 
 DeepSeek Harness 桌面**纯壳**客户端（Electron + TypeScript）。完整设计见 [../docs/DESIGN.md](../docs/DESIGN.md)。
 
+## 安装（npm / 安装包）
+
+```sh
+# npm 直接运行（Windows；安装时下载 electron 二进制 ~110MB）
+npx @kuaizhongqiang/dsh-desktop
+# 或全局安装后运行
+npm i -g @kuaizhongqiang/dsh-desktop && dsh-desktop
+
+# 正式安装包（NSIS，含自动更新）见 GitHub Releases：
+#   https://github.com/kuaizhongqiang/dsh-desktop/releases
+```
+
+> npm ≥ 11.16 默认拦截安装脚本：若 electron 二进制未自动下载，先执行
+> `npm config set allow-scripts electron` 再重装；国内网络可加
+> `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/` 加速。
+
 ## 结构
 
 ```
