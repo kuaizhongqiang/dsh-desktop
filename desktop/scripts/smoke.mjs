@@ -38,7 +38,9 @@ async function ensureDshEntry() {
   if (!existsSync(bin)) {
     console.log(`[smoke] installing @deepseek-ai/dsh@${dshVersion} (npm, temp prefix)…`)
     execFileSync(isWin ? 'npm.cmd' : 'npm', ['install', '--no-save', '--no-audit', '--no-fund', '--prefix', prefix, `@deepseek-ai/dsh@${dshVersion}`], {
-      stdio: 'inherit', windowsHide: true, shell: isWin, timeout: 180_000,
+      // CI cold cache can take several minutes for the full dsh dep tree
+      // (native modules like node-pty); never kill it early.
+      stdio: 'inherit', windowsHide: true, shell: isWin, timeout: 600_000,
     })
   }
   return bin
