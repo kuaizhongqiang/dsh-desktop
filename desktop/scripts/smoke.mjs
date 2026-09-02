@@ -95,15 +95,25 @@ while (Date.now() < deadline) {
   if (rootStatus === 401 || rootStatus === 200 || rootStatus === 303) break
   await new Promise((r) => setTimeout(r, 400))
 }
-closeSync(logFd)
 
 function childLogText() {
   try { return readFileSync(childLog, 'utf8') } catch { return '' }
 }
 
-const matches = [...childLogText().matchAll(TOKEN_URL_RE)]
-const tokenUrl = matches.length > 0 ? matches[matches.length - 1][1] : null
+// dsh prints the token URL a moment AFTER the port answers HTTP; on a slow/busy
+// CI runner the gap can be hundreds of ms — poll the log file for the token
+// (still open, child still writing) before closing the fd.
+const tokenDeadline = Date.now() + 8_000
+let tokenUrl = null
+while (Date.now() < tokenDeadline) {
+  const matches = [...childLogText().matchAll(TOKEN_URL_RE)]
+  if (matches.length > 0) { tokenUrl = matches[matches.length - 1][1]; break }
+  await new Promise((r) => setTimeout(r, 200))
+}
+closeSync(logFd)
+
 console.log(`[smoke] root status=${rootStatus} (401/200/303 = dsh up)`)
+console.log(`[smoke] token-url=${tokenUrl ? 'found' : 'none'} (dsh < v0.1.2? or log not yet flushed)`)
 
 let ok = rootStatus === 401 || rootStatus === 200 || rootStatus === 303
 let tokenVerdict = 'n/a'
@@ -137,10 +147,9 @@ if (ok && tokenUrl) {
   }
 } else {
   ok = false
-  console.log('[smoke] no token URL found in dsh output (dsh < v0.1.2?)')
 }
 
-console.log(`[smoke] token-url=${tokenUrl ? 'found' : 'none'} token-exchange=${tokenVerdict}`)
+console.log(`[smoke] token-exchange=${tokenVerdict}`)
 console.log(`[smoke] authed-rpc=${rpcVerdict}`)
 console.log('[smoke] stdout tail:', childLogText().split('\n').filter(Boolean).slice(-4).join(' | '))
 
