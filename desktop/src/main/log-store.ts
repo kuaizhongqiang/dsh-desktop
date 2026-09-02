@@ -5,7 +5,7 @@ import { writeFileSync } from 'node:fs'
 import { LOG_RING_SIZE } from './constants.js'
 
 export type LogLevel = 'info' | 'warn' | 'error'
-export type LogSource = 'server' | 'app' | 'bootstrap'
+export type LogSource = 'connect' | 'launcher' | 'app'
 
 export interface LogEntry {
   id: number

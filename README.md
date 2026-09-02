@@ -1,74 +1,82 @@
 # dsh-desktop
 
-DeepSeek Harness（dsh）的 Windows 桌面客户端：以 Electron 桌面壳内嵌 dsh Web UI，本地管理 dsh server 子进程，提供托盘常驻、单实例、端口冲突自动回退、日志面板、设置页等桌面体验。
+DeepSeek Harness（dsh）的 Windows 桌面**纯壳**客户端：用 Electron 壳内嵌 dsh Web UI，
+**不携带、不拉起 dsh server**——它连接**共享的 dsh server**（由 dsh-launcher / dsh-vscode /
+`dsh web` 三者中**先启动的一端**持有），与浏览器（web）、VSCode 扩展三端同步。
 
-> 📄 完整方案见 [docs/DESIGN.md](docs/DESIGN.md)（v0.4，经评审修订）
-> 📦 最新发布：[GitHub Releases](https://github.com/kuaizhongqiang/dsh-desktop/releases)
+> 📄 完整方案见 [docs/DESIGN.md](docs/DESIGN.md)
+> 📦 发布：[GitHub Releases](https://github.com/kuaizhongqiang/dsh-desktop/releases)
+
+## 三端同步模型
+
+```
+                ┌─────────────────────────────┐
+                │  共享 dsh server（一份）      │
+                │  dsh web --port 3080         │
+                │  DSH_HOME（数据/插件/skills） │
+                │  $DSH_HOME/launch-token.json │
+                └──────────────┬──────────────┘
+       谁先启动谁持有 ↑         │ 端口探测 + 共享 token
+   ┌──────────────┬────────────┼──────────────┐
+   ▼              ▼            ▼              ▼
+dsh-launcher   dsh web      dsh-vscode    dsh-desktop
+（安装+拉起）  （浏览器）    （扩展）      （纯壳，只连接）
+```
+
+- **谁持有 server**：dsh-launcher / VSCode 扩展 / 终端 `dsh web`——先启动的一端拉起并持有
+  server 进程；其他端**探测端口**（`127.0.0.1:3080` 默认）发现已运行就直接连接，不重复拉起。
+- **认证同步**：dsh v0.1.2+ 每次启动生成 launch token；持有者把 token 写入
+  `$DSH_HOME/launch-token.json`（v1 规范，与 dsh-launcher / dsh-vscode 共用），
+  各端读取后用 `/?token=…` 换取会话 cookie。
+- **桌面端（本仓库）**：纯 Electron 壳，永不 spawn dsh。启动时探测共享 server：
+  - 已运行 → 读取共享 token → 窗口加载 `http://127.0.0.1:<port>/?token=…`；
+  - 端口空闲 → 显示连接页，一键「启动服务」**委托 dsh-launcher**（`start --no-browser`，
+    启动器常驻并持有 server，关桌面端不影响服务）；
+  - 端口被非 dsh 进程占用 → 明确报错提示。
 
 ## 功能特性
 
-- **内嵌 dsh Web UI**：App 自动拉起 dsh server（`dsh --profile web`）并在窗口内加载其 Web UI，dsh 上游零修改
-- **自管理 server 生命周期**：预申请空闲端口、健康探测就绪判定、优雅退出 + 进程树清理、端口冲突自动回退
-- **桌面能力**：系统托盘（最小化到托盘）、单实例锁、日志面板（环形缓冲 + 导出）、崩溃提示页
-- **设置页**：端口、开机自启、数据目录（`DSH_HOME`）、下载镜像、托盘行为
-- **自动更新**：electron-updater（Full/Slim 分 channel 更新源）
-
-## 双版本发布模型
-
-| 版本 | 目标用户 | 说明 | 安装包 |
-|---|---|---|---|
-| **Full 版** | 轻度用户 | 全量自包含：捆绑官方 Node.js + dsh（npm 锁定包），安装即用，零依赖拉取 | `dsh-desktop-full-0.1.0-setup.exe`（~168MB） |
-| **Slim 版** | 开发者 | 最小安装包：首启检测系统环境（Node ≥ 22.19 / dsh），缺失时引导下载 Node / 全局安装 dsh | `dsh-desktop-slim-0.1.0-setup.exe`（~89MB） |
-
-## 里程碑状态
-
-| 里程碑 | 状态 |
-|---|---|
-| M1 最小可用 | ✅ 完成 |
-| M2 桌面能力 | ✅ 完成 |
-| M3 设置与引导 | ✅ 完成 |
-| M4 分发与发布 | ✅ 完成（v0.1.0 已发布） |
-
-## 项目结构
-
-- `deepseek-harness/` — dsh 上游（git submodule，**只读，零修改**；作为版本锁定/参考/审计面）
-- `desktop/` — 桌面 App（Electron + TypeScript，全部为新增代码，含开发指南见 [desktop/README.md](desktop/README.md)）
-- `docs/DESIGN.md` — 设计文档（paper）；`docs/DESIGN-REVIEW.md` — 评审意见
-- `.github/workflows/` — CI（typecheck/build/冒烟）与 Release（双版本打包 + 发布）工作流
+- **纯壳连接**：端口探测 + 共享 launch-token 认证 + 健康监控（server 停止自动回到连接页）
+- **委托 dsh-launcher**：启动/停止服务均委托启动器（自动查找 PATH / 常见安装位置，可在设置指定）
+- **桌面能力**：系统托盘（最小化到托盘、状态提示）、单实例锁、日志面板、设置页
+  （端口 / DSH_HOME / launcher 路径 / 自启）、自动更新（electron-updater，单版本）
+- **插件**：携带 [dsh-plugins](https://github.com/kuaizhongqiang/dsh-plugins) 子模块，
+  `npm run plugins:install` 一键把插件安装技能装进 `%DSH_HOME%\skills`（插件装进共享
+  DSH_HOME 的 `profiles/web/plugins`，三端共享）
+- **dsh 版本锁定**：`config.json` 的 `dshVersion`（当前 `0.1.2-alpha.4`，与 npm alpha /
+  GitHub main 一致）；`deepseek-harness/` 子模块仅作参考/审计，零修改
 
 ## 快速开始（开发）
 
 要求：Node ≥ 22.19（本机建议 24.x）。
 
 ```sh
+git submodule update --init --recursive   # deepseek-harness + dsh-plugins 子模块
 cd desktop
 npm install
 npm run make:icon            # 生成图标（首次）
-node scripts/prepare-dsh.mjs # 拉取 dsh npm 锁定包（resources/dev-dsh，开发用）
 npm run build                # tsc + 静态资源
-npm run dev                  # 启动 Electron（dev 形态：系统 node + 本地 dsh）
-npm run smoke                # 无 GUI 冒烟：验证 dsh 可启动并托管 Web UI
+npm run dev                  # 启动 Electron（连接本机共享 server，需先有 dsh 在跑）
+npm run smoke                # 无 GUI 冒烟：验证 dsh 启动令牌协议 + Web UI
 ```
 
 ## 打包与发布
 
 ```sh
-# Full（捆绑 Node.exe + dsh 产物）
-node scripts/prepare-dsh.mjs
-node scripts/fetch-node.mjs
-npm run pack:full            # → release/full/
-
-# Slim（最小安装包）
-npm run pack:slim            # → release/slim/
-
-# 发布（打 tag 触发 GitHub Actions）
-git tag v0.1.1 && git push origin v0.1.1
+cd desktop
+npm run pack                 # → release/（NSIS 单版本安装包）
 ```
 
-CI 自动执行：typecheck → build → dsh 冒烟 → 双版本 NSIS 打包 → 发布到 GitHub Release（含分 channel 更新源 `full.yml`/`slim.yml`）。配置仓库 Secrets `CSC_LINK` + `CSC_KEY_PASSWORD` 即启用 Windows 代码签名。
+CI 自动执行：typecheck → build → dsh 冒烟 → NSIS 打包 → 发布到 GitHub Release
+（含 `latest.yml` 更新源）。配置仓库 Secrets `CSC_LINK` + `CSC_KEY_PASSWORD` 即启用签名。
 
-## 相关链接
+```sh
+git tag v0.2.0 && git push origin v0.2.0   # 触发发布
+```
+
+## 相关项目
 
 - dsh 上游：[deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)
-- 设计文档：[docs/DESIGN.md](docs/DESIGN.md)
-- 发布：[GitHub Releases](https://github.com/kuaizhongqiang/dsh-desktop/releases)
+- 服务持有者：[kuaizhongqiang/dsh-launcher](https://github.com/kuaizhongqiang/dsh-launcher)
+- VSCode 端：[kuaizhongqiang/dsh-vscode](https://github.com/kuaizhongqiang/dsh-vscode)
+- 插件合集：[kuaizhongqiang/dsh-plugins](https://github.com/kuaizhongqiang/dsh-plugins)

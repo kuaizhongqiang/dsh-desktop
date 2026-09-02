@@ -1,31 +1,26 @@
 // IPC surface between main and the app:// renderers. Kept minimal: renderers
-// only ever see the events/handlers listed here (§7.2).
+// only ever see the events/handlers listed here.
 import { app, dialog, ipcMain } from 'electron'
-import type { DshServer } from './dsh-server.js'
-import { checkEnv, type EnvStatus } from './env-check.js'
+import type { ShellController } from './controller.js'
 import { getSettings, saveSettings } from './settings.js'
 import { logs } from './log-store.js'
 import { checkForUpdates, downloadUpdate, installUpdate, updaterEnabled, onUpdateStatus } from './updater.js'
-import { runBootstrap, cancelBootstrap, onBootstrapEvent } from './bootstrap.js'
-import { openView, showBootstrapWindow, getBootstrapWindow, broadcastEvent } from './windows.js'
-import { detectVariant } from './runtime.js'
+import { openView, broadcastEvent } from './windows.js'
 
 export interface AppState {
-  variant: string
   appVersion: string
-  server: { status: string; port: number | null; url: string | null }
+  connect: ReturnType<ShellController['getState']>
+  launcherPath: string
   settings: ReturnType<typeof getSettings>
-  env: EnvStatus | null
   updateEnabled: boolean
 }
 
-export function registerIpc(server: DshServer, onQuit: () => void): void {
-  ipcMain.handle('app:get-state', async (): Promise<AppState> => ({
-    variant: detectVariant(),
+export function registerIpc(controller: ShellController, onQuit: () => void): void {
+  ipcMain.handle('app:get-state', (): AppState => ({
     appVersion: app.getVersion(),
-    server: { status: server.getStatus(), port: server.getPort(), url: server.getUrl() },
+    connect: controller.getState(),
+    launcherPath: controller.launcherPath(),
     settings: getSettings(),
-    env: null,
     updateEnabled: updaterEnabled(),
   }))
 
@@ -40,46 +35,38 @@ export function registerIpc(server: DshServer, onQuit: () => void): void {
     return r.canceled ? null : r.filePaths[0] ?? null
   })
 
-  ipcMain.handle('server:restart', async () => {
-    broadcastEvent({ type: 'server-status', status: 'starting' })
-    const result = await server.restart()
-    return result
-  })
+  // Shared-server actions (never spawned by the desktop itself)
+  ipcMain.handle('server:connect', () => controller.connect())
+  ipcMain.handle('server:start', () => controller.start())
+  ipcMain.handle('server:stop', () => controller.stop())
+  ipcMain.handle('server:open-browser', () => { controller.openInBrowser(); return true })
+  ipcMain.handle('launcher:open', () => { controller.openLauncher(); return true })
 
   ipcMain.handle('log:get', () => logs.getRecent(500))
   ipcMain.handle('log:clear', () => { logs.clear(); return true })
   ipcMain.handle('log:export', async () => {
-    const r = await dialog.showSaveDialog({ defaultPath: `dsh-desktop-logs-${Date.now()}.log`, filters: [{ name: 'log', extensions: ['log', 'txt'] }] })
+    const r = await dialog.showSaveDialog({
+      defaultPath: `dsh-desktop-logs-${Date.now()}.log`,
+      filters: [{ name: 'log', extensions: ['log', 'txt'] }],
+    })
     if (r.canceled || !r.filePath) return null
     logs.exportTo(r.filePath)
     return r.filePath
   })
-
-  ipcMain.handle('env:check', () => checkEnv())
-
-  ipcMain.handle('bootstrap:run', async () => {
-    const result = await runBootstrap()
-    return result
-  })
-  ipcMain.handle('bootstrap:cancel', () => { cancelBootstrap(); return true })
 
   ipcMain.handle('updater:check', () => checkForUpdates())
   ipcMain.handle('updater:download', () => downloadUpdate())
   ipcMain.handle('updater:install', () => installUpdate())
 
   ipcMain.handle('window:open', (_e, view: string) => {
-    if (view === 'bootstrap') showBootstrapWindow()
-    else openView(view)
+    openView(view)
     return true
   })
 
   ipcMain.handle('app:quit', () => { onQuit(); return true })
 
   // Stream main-process events to renderers.
-  server.on('status', (status, detail) => broadcastEvent({ type: 'server-status', status, detail }))
-  server.on('ready', (info) => broadcastEvent({ type: 'server-ready', port: info.port, url: info.url }))
-  server.on('crashed', (info) => broadcastEvent({ type: 'server-crashed', ...info }))
+  controller.onChanged(() => broadcastEvent({ type: 'connect', state: controller.getState() }))
   logs.on('entry', (entry) => broadcastEvent({ type: 'log', entry }))
-  onBootstrapEvent((ev) => broadcastEvent({ type: 'bootstrap', ev }))
   onUpdateStatus((status) => broadcastEvent({ type: 'update', status }))
 }

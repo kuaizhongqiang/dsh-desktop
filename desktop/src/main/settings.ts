@@ -1,35 +1,29 @@
 // Persistent settings. Lightweight JSON store under app.getPath('userData')
-// (default %APPDATA%\dsh-desktop, D12); atomic writes via temp file + rename.
+// (default %APPDATA%\dsh-desktop); atomic writes via temp file + rename.
 import { app } from 'electron'
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { DEFAULT_PORT } from './constants.js'
 
 export interface Settings {
-  /** Preferred dsh server port; 0 means "let the app pick a free port". */
+  /** Shared dsh server port (dsh web default 3080; must match the running server). */
   port: number
+  /** dsh data root ('' = default ~/.dsh). Read as DSH_HOME: where launch-token.json lives. */
+  dataDir: string
+  /** dsh-launcher.exe path override ('' = auto-detect: PATH / common locations). */
+  launcherPath: string
   /** Start with Windows (app.setLoginItemSettings). */
   autoLaunch: boolean
   /** Closing the window minimizes to tray instead of quitting. */
   closeToTray: boolean
-  /** dsh data root override ('' = dsh default ~/.dsh). Passed as DSH_HOME. */
-  dataDir: string
-  /** npm/node mirror base URL ('' = official). */
-  mirrorUrl: string
-  /** Slim bootstrap: allow automatic downloads (requires explicit user confirm per step). */
-  autoDownload: boolean
-  /** Set true once the Slim bootstrap completed successfully. */
-  bootstrapDone: boolean
 }
 
 const DEFAULTS: Settings = {
   port: DEFAULT_PORT,
+  dataDir: '',
+  launcherPath: '',
   autoLaunch: false,
   closeToTray: true,
-  dataDir: '',
-  mirrorUrl: '',
-  autoDownload: true,
-  bootstrapDone: false,
 }
 
 let cache: Settings | null = null

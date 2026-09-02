@@ -1,6 +1,6 @@
-// Window management: main window (start page -> dsh Web UI), log/settings/
-// bootstrap views. Renderer UI served through the privileged `app://` scheme
-// (out/renderer); main window loads the dsh URL once the server is ready.
+// Window management: main window (connect page -> shared dsh Web UI), log and
+// settings views. Renderer UI is served through the privileged `app://` scheme
+// (out/renderer); the main window loads the shared dsh URL once connected.
 import { BrowserWindow, app, protocol, shell } from 'electron'
 import { createReadStream, existsSync, statSync } from 'node:fs'
 import { Readable } from 'node:stream'
@@ -45,7 +45,6 @@ function registerAppProtocol(): void {
 let mainWindow: BrowserWindow | null = null
 let logWindow: BrowserWindow | null = null
 let settingsWindow: BrowserWindow | null = null
-let bootstrapWindow: BrowserWindow | null = null
 
 function webPreferences(): Electron.WebPreferences {
   return {
@@ -82,28 +81,25 @@ export function createMainWindow(): BrowserWindow {
       void shell.openExternal(url)
     }
   })
-  win.on('close', (e) => {
-    // Minimize-to-tray handled in index.ts via 'close' interception when closeToTray
-  })
   win.on('closed', () => { mainWindow = null })
   win.once('ready-to-show', () => win.show())
   return win
 }
 
-export function showStartPage(win: BrowserWindow): void {
-  void win.loadURL('app://renderer/start.html')
+/** Show the shell connect page (no shared server, busy, starting, or lost). */
+export function showConnectPage(win: BrowserWindow | null, detail?: string): void {
+  if (!win || win.isDestroyed()) return
+  const query = detail ? `?view=connect&detail=${encodeURIComponent(detail)}` : '?view=connect'
+  void win.loadURL(`app://renderer/ui.html${query}`)
 }
 
-export function showCrashPage(win: BrowserWindow, detail: string): void {
-  void win.loadURL(`app://renderer/ui.html?view=crash&detail=${encodeURIComponent(detail)}`)
-}
-
-export async function loadDshUrl(win: BrowserWindow, url: string): Promise<void> {
+export async function loadDshUrl(win: BrowserWindow | null, url: string): Promise<void> {
+  if (!win || win.isDestroyed()) return
   try {
     await win.loadURL(url)
   } catch (err) {
-    // dsh server went away mid-load
-    showCrashPage(win, `加载 ${url} 失败：${(err as Error).message}`)
+    // shared server went away mid-load → back to the connect page
+    showConnectPage(win, `加载 ${url} 失败：${(err as Error).message}`)
   }
 }
 
@@ -130,27 +126,10 @@ export function openView(view: string): void {
   }
 }
 
-export function showBootstrapWindow(): BrowserWindow {
-  if (bootstrapWindow && !bootstrapWindow.isDestroyed()) { bootstrapWindow.focus(); return bootstrapWindow }
-  bootstrapWindow = new BrowserWindow({
-    width: 720,
-    height: 640,
-    show: false,
-    title: '环境准备',
-    resizable: false,
-    webPreferences: webPreferences(),
-  })
-  bootstrapWindow.on('closed', () => { bootstrapWindow = null })
-  void bootstrapWindow.loadURL('app://renderer/ui.html?view=bootstrap')
-  bootstrapWindow.once('ready-to-show', () => bootstrapWindow?.show())
-  return bootstrapWindow
-}
-
 export function getMainWindow(): BrowserWindow | null { return mainWindow }
-export function getBootstrapWindow(): BrowserWindow | null { return bootstrapWindow }
 
 export function broadcastEvent(ev: unknown): void {
-  const targets = [mainWindow, logWindow, settingsWindow, bootstrapWindow].filter(
+  const targets = [mainWindow, logWindow, settingsWindow].filter(
     (w): w is BrowserWindow => !!w && !w.isDestroyed(),
   )
   for (const w of targets) w.webContents.send('app:event', ev)
@@ -161,6 +140,3 @@ export function initWindows(): void {
     registerAppProtocol()
   })
 }
-
-/** Renderer root for diagnostics. */
-export function describeRenderer(): string { return rendererRoot }

@@ -9,25 +9,29 @@
 <body>
   <header class="topbar">
     <strong>dsh-desktop</strong>
-    <span id="variant-badge" class="badge"></span>
     <span id="server-badge" class="badge badge-info"></span>
     <span class="spacer"></span>
     <button id="btn-logs" class="ghost" type="button">日志</button>
     <button id="btn-settings" class="ghost" type="button">设置</button>
   </header>
 
-  <!-- ── Bootstrap view ── -->
-  <section id="view-bootstrap" class="view" hidden>
-    <h2>环境准备（Slim 版）</h2>
-    <p class="muted">桌面版需要 Node.js ≥ 22.19 与 dsh。检测到缺失项后将引导安装。</p>
-    <div id="bootstrap-env" class="env-list"></div>
-    <div id="bootstrap-steps" class="env-list"></div>
+  <!-- ── Connect view (shell home: shared server status + actions) ── -->
+  <section id="view-connect" class="view" hidden>
+    <h2>连接到 dsh server</h2>
+    <p id="connect-status" class="connect-status">检测中…</p>
+    <p id="connect-detail" class="muted"></p>
+    <div id="connect-meta" class="env-list"></div>
     <div class="actions">
-      <button id="btn-env-check" type="button">重新检测</button>
-      <button id="btn-bootstrap-run" class="primary" type="button">开始引导安装</button>
-      <button id="btn-bootstrap-cancel" class="ghost" type="button">取消</button>
+      <button id="btn-start" class="primary" type="button">启动服务（dsh-launcher）</button>
+      <button id="btn-reconnect" class="ghost" type="button">重连</button>
+      <button id="btn-stop" class="ghost" type="button">停止服务</button>
+      <button id="btn-open-browser" class="ghost" type="button">在浏览器打开</button>
+      <button id="btn-open-launcher" class="ghost" type="button">打开 dsh-launcher</button>
     </div>
-    <p id="bootstrap-note" class="muted"></p>
+    <p class="muted">
+      dsh server 由先启动的一端持有（dsh-launcher / VSCode 扩展 / <code>dsh web</code>），
+      桌面端只是外壳，三端共享同一服务与数据（<code>%DSH_HOME%</code>）。
+    </p>
   </section>
 
   <!-- ── Log view ── -->
@@ -47,21 +51,23 @@
   <section id="view-settings" class="view" hidden>
     <h2>设置</h2>
     <form id="settings-form" class="form">
-      <label>端口（0 = 自动分配）
-        <input id="set-port" type="number" min="0" max="65535" required>
+      <label>共享 server 端口（dsh web 默认 3080）
+        <input id="set-port" type="number" min="1" max="65535" required>
       </label>
       <label class="row"><input id="set-close-tray" type="checkbox"> 关闭窗口时最小化到托盘</label>
       <label class="row"><input id="set-autolaunch" type="checkbox"> 开机自启</label>
-      <label>dsh 数据目录（留空 = ~/.dsh）
+      <label>dsh 数据目录 DSH_HOME（留空 = ~/.dsh，存放 launch-token.json）
         <span class="row">
           <input id="set-datadir" type="text" placeholder="~/.dsh">
-          <button id="btn-browse" class="ghost" type="button">浏览…</button>
+          <button id="btn-browse-datadir" class="ghost" type="button">浏览…</button>
         </span>
       </label>
-      <label>下载镜像（留空 = 官方源，如 https://npmmirror.com/mirrors/node）
-        <input id="set-mirror" type="url" placeholder="https://…">
+      <label>dsh-launcher.exe 路径（留空 = 自动查找 PATH / 常见位置）
+        <span class="row">
+          <input id="set-launcher" type="text" placeholder="自动查找">
+          <button id="btn-browse-launcher" class="ghost" type="button">浏览…</button>
+        </span>
       </label>
-      <label class="row"><input id="set-autodownload" type="checkbox"> 允许引导时自动下载（每次均需确认）</label>
       <div class="actions">
         <button id="btn-settings-save" class="primary" type="submit">保存</button>
         <span id="settings-saved" class="muted" hidden>已保存 ✓</span>
@@ -77,19 +83,7 @@
     </div>
   </section>
 
-  <!-- ── Crash view ── -->
-  <section id="view-crash" class="view" hidden>
-    <h2>dsh server 异常</h2>
-    <p id="crash-detail" class="muted"></p>
-    <div class="actions">
-      <button id="btn-crash-restart" class="primary" type="button">重启 server</button>
-      <button id="btn-crash-logs" class="ghost" type="button">打开日志</button>
-      <button id="btn-crash-quit" class="ghost" type="button">退出</button>
-    </div>
-  </section>
-
   <footer class="statusbar">
-    <span id="foot-variant"></span>
     <span id="foot-server"></span>
     <span id="foot-update"></span>
   </footer>

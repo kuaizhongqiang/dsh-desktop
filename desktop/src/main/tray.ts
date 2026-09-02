@@ -1,8 +1,8 @@
-// System tray: minimize-to-tray, show/hide, restart server, log/settings
-// windows, check updates, quit. (§7 / M2)
+// System tray: minimize-to-tray, show/hide, start/stop shared server
+// (delegated to dsh-launcher), log/settings windows, check updates, quit.
 import { app, Menu, nativeImage, Tray } from 'electron'
 import { join } from 'node:path'
-import type { DshServer } from './dsh-server.js'
+import type { ShellController } from './controller.js'
 import { logs } from './log-store.js'
 
 let tray: Tray | null = null
@@ -10,14 +10,15 @@ let tray: Tray | null = null
 export interface TrayActions {
   showMain: () => void
   toggleMain: () => void
-  restartServer: () => void
+  startServer: () => void
+  stopServer: () => void
   openLogs: () => void
   openSettings: () => void
   checkUpdates: () => void
   quit: () => void
 }
 
-export function createTray(server: DshServer, actions: TrayActions): Tray {
+export function createTray(controller: ShellController, actions: TrayActions): Tray {
   const iconPath = join(app.getAppPath(), 'assets', 'icon.ico')
   const icon = nativeImage.createFromPath(iconPath)
   tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon.resize({ width: 16, height: 16 }))
@@ -26,7 +27,9 @@ export function createTray(server: DshServer, actions: TrayActions): Tray {
   const menu = Menu.buildFromTemplate([
     { label: '显示 / 隐藏窗口', click: () => actions.toggleMain() },
     { type: 'separator' },
-    { label: '重启 dsh server', click: () => actions.restartServer() },
+    { label: '启动服务（dsh-launcher）', click: () => actions.startServer() },
+    { label: '停止服务（dsh-launcher）', click: () => actions.stopServer() },
+    { type: 'separator' },
     { label: '打开日志', click: () => actions.openLogs() },
     { label: '设置', click: () => actions.openSettings() },
     { label: '检查更新', click: () => actions.checkUpdates() },
@@ -37,8 +40,9 @@ export function createTray(server: DshServer, actions: TrayActions): Tray {
   tray.on('double-click', () => actions.showMain())
   tray.on('click', () => actions.showMain())
 
-  server.on('status', (status) => {
-    tray?.setToolTip(`dsh-desktop — dsh server: ${status}`)
+  controller.onChanged(() => {
+    const s = controller.getState()
+    tray?.setToolTip(`dsh-desktop — dsh server: ${s.status}${s.url ? ` · ${s.url}` : ''}`)
   })
 
   logs.info('app', 'tray created')

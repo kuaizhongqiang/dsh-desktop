@@ -1,60 +1,60 @@
 # dsh-desktop（desktop/）
 
-DeepSeek Harness 桌面客户端（Electron + TypeScript）。完整设计见 [../docs/DESIGN.md](../docs/DESIGN.md)。
+DeepSeek Harness 桌面**纯壳**客户端（Electron + TypeScript）。完整设计见 [../docs/DESIGN.md](../docs/DESIGN.md)。
 
 ## 结构
 
 ```
-src/main/      Electron 主进程（server 生命周期 / 托盘 / 设置 / 日志 / 引导 / 更新）
-src/renderer/  UI（启动页、日志、设置、引导、崩溃提示）
+src/main/      Electron 主进程（connect 探测/token 认证 / launcher 委托 / 托盘 / 设置 / 日志 / 更新）
+src/renderer/  UI（连接页 / 日志 / 设置）
 preload/       contextBridge（最小 IPC 面）
-scripts/       build / prepare-dsh / fetch-node / smoke / make-icon
+scripts/       build / smoke / install-plugins / make-icon
 build/         electron-builder 资源（icon）
-resources/     运行时产物（dev-dsh / node / dsh，均不入库）
+assets/        运行时图标（窗口/托盘）
+dsh-plugins/   插件合集子模块（../dsh-plugins）
 ```
 
 ## 开发
 
-要求：Node ≥ 22.19。
+要求：Node ≥ 22.19；本机需有共享 dsh server 在跑（`dsh web`、dsh-launcher 或 VSCode 扩展任一）。
 
 ```sh
+git submodule update --init --recursive
 npm install              # 安装依赖（含 Electron）
 npm run make:icon        # 生成图标（首次）
-node scripts/prepare-dsh.mjs   # 拉取 dsh npm 锁定包到 resources/dev-dsh（开发用）
 npm run build            # tsc + 静态资源拷贝到 out/
-npm run dev              # 启动 Electron（dev 形态：系统 node + resources/dev-dsh 的 dsh）
-npm run smoke            # 无 GUI 冒烟：验证 dsh 包能启动并托管 Web UI
+npm run dev              # 启动 Electron（连接共享 server；无 server 时显示连接页）
+npm run smoke            # 无 GUI 冒烟：验证 dsh 启动令牌协议（401→token→303→RPC 认证）
 ```
 
-> dev 形态的 dsh server 使用系统 `node` 启动 `resources/dev-dsh` 中的 dsh；
-> 如本机已有全局 dsh，也可直接使用（Slim 形态逻辑）。
-
-## 双版本打包
+## 打包
 
 ```sh
-# Full（捆绑官方 Node.exe + dsh 产物）
-node scripts/prepare-dsh.mjs          # → resources/dsh
-node scripts/fetch-node.mjs           # → resources/node
-npm run pack:full                     # → release/full/
-
-# Slim（最小安装包，首启引导安装环境）
-npm run pack:slim                     # → release/slim/
+npm run pack             # → release/（NSIS 单版本安装包）
 ```
 
-产物：NSIS 安装包（`dsh-desktop-{full|slim}-{version}-setup.exe`）+ 自动更新 feed（`latest.yml`）。
+产物：`dsh-desktop-{version}-setup.exe` + `latest.yml`（自动更新 feed）。
+
+## 插件
+
+```sh
+npm run plugins:install  # 把 dsh-plugins 的安装技能装进 %DSH_HOME%\skills（幂等）
+```
+
+插件本体装进共享 `%DSH_HOME%\profiles\web\plugins`，三端（web / vscode / desktop 壳）共享。
 
 ## 发布（CI）
 
-- **CI**（`.github/workflows/ci.yml`）：push/PR 时 typecheck + build + dsh 冒烟。
-- **Release**（`.github/workflows/release.yml`）：打 `v*` tag 或手动触发 → 构建双版本 → 发布到 GitHub Release（含更新源）。
-- **签名**：在仓库 Secrets 配置 `CSC_LINK` + `CSC_KEY_PASSWORD` 即启用 Windows 代码签名；未配置则产出未签名安装包。
+- **CI**（`.github/workflows/ci.yml`）：push/PR 时 typecheck + build + 共享协议冒烟。
+- **Release**（`.github/workflows/release.yml`）：打 `v*` tag → 构建单版本 → 发布 GitHub Release（含更新源）。
+- **签名**：Secrets 配置 `CSC_LINK` + `CSC_KEY_PASSWORD` 启用 Windows 代码签名。
 
 ```sh
-git tag v0.1.0 && git push origin v0.1.0   # 触发发布
+git tag v0.2.0 && git push origin v0.2.0   # 触发发布
 ```
 
 ## dsh 版本锁定
 
-- 锁定版本见 `config.json`（`dshVersion` / `nodeVersion`）。
-- 升级：`npm view @deepseek-ai/dsh versions` 确认 → 更新 `config.json` → 双版本同步。
-- 子模块 `../deepseek-harness` 仅作参考/审计，**零修改**（CI 校验）。
+- 期望版本见 `config.json`（`dshVersion`，当前 `0.1.2-alpha.4`；与 npm alpha / GitHub main 对齐）。
+- 桌面端不捆绑 dsh：实际安装/升级由 dsh-launcher 负责（npm registry / GitHub tag 双源）。
+- 子模块 `../deepseek-harness` 与 `../dsh-plugins` 仅作参考/审计/安装源，零修改。

@@ -17,10 +17,6 @@ desktop/out/
 desktop/dist/
 desktop/release/
 desktop/build/artifacts/
-desktop/resources/node/
-desktop/resources/dsh/
-desktop/resources/dev-dsh/
-desktop/.ci-dsh/
 .verify-dsh/
 
 # 环境与密钥

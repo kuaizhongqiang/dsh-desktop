@@ -1,7 +1,7 @@
 {
   "name": "dsh-desktop",
-  "version": "0.1.1",
-  "description": "Desktop client for DeepSeek Harness (dsh): embeds the dsh Web UI, manages a local dsh server, tray/log/settings desktop experience.",
+  "version": "0.2.0",
+  "description": "Desktop shell for DeepSeek Harness (dsh): a pure Electron shell over the shared dsh Web UI. Never spawns dsh — it connects to the server started by dsh-launcher / dsh-vscode / `dsh web` (whoever started first owns it).",
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -14,14 +14,11 @@
     "dev": "electron .",
     "build": "node scripts/build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "prepare:dsh": "node scripts/prepare-dsh.mjs",
-    "fetch:node": "node scripts/fetch-node.mjs",
     "make:icon": "node scripts/make-icon.mjs",
     "smoke": "node scripts/smoke.mjs",
-    "pack:full": "npm run build && electron-builder --config electron-builder.full.yml",
-    "pack:slim": "npm run build && electron-builder --config electron-builder.slim.yml",
-    "pack:full:dir": "npm run build && electron-builder --config electron-builder.full.yml --dir",
-    "pack:slim:dir": "npm run build && electron-builder --config electron-builder.slim.yml --dir"
+    "plugins:install": "node scripts/install-plugins.mjs",
+    "pack": "npm run build && electron-builder --config electron-builder.yml",
+    "pack:dir": "npm run build && electron-builder --config electron-builder.yml --dir"
   },
   "dependencies": {
     "electron-updater": "^6.6.2"
@@ -31,5 +28,9 @@
     "electron": "^39.0.0",
     "electron-builder": "^26.0.12",
     "typescript": "^5.7.0"
+  },
+  "allowScripts": {
+    "electron": true,
+    "electron-winstaller": true
   }
 }

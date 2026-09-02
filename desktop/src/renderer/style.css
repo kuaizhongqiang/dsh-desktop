@@ -119,6 +119,18 @@ hr { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
   font-size: 12px;
 }
 
+/* connect page status */
+.connect-status {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 6px 0 2px;
+}
+.connect-status.connected { color: var(--ok); }
+.connect-status.starting { color: var(--accent-2); }
+.connect-status.checking { color: var(--muted); }
+.connect-status.no-server { color: var(--warn); }
+.connect-status.busy { color: var(--danger); }
+
 /* start page */
 .start-body { display: grid; place-items: center; }
 .start-card { text-align: center; }

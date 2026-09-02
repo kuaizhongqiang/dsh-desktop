@@ -1,4 +1,4 @@
-# CI: quick gates on push/PR — typecheck, build, dsh boot smoke.
+# CI: quick gates on push/PR — typecheck, build, shared-server protocol smoke.
 name: CI
 
 on:
@@ -38,8 +38,5 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Prepare dsh (npm-locked package)
-        run: node scripts/prepare-dsh.mjs --prefix .ci-dsh
-
-      - name: "Smoke: dsh boots and serves the Web UI"
-        run: node scripts/smoke.mjs --dsh .ci-dsh/node_modules/@deepseek-ai/dsh/lib/bin.js
+      - name: "Smoke: dsh (pinned) boots with launch-token auth and serves RPC"
+        run: node scripts/smoke.mjs

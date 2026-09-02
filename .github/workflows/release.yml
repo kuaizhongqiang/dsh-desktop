@@ -1,5 +1,5 @@
-# Release: build Full + Slim installers (NSIS), sign when secrets are present,
-# publish both to a GitHub Release (electron-updater feed via latest*.yml).
+# Release: build the single-variant NSIS installer, sign when secrets are
+# present, publish to a GitHub Release (electron-updater feed via latest.yml).
 name: Release
 
 on:
@@ -46,21 +46,11 @@ jobs:
           npm run build
           npm run make:icon
 
-      # Full variant inputs: bundled official Node + dsh npm-locked package (D6)
-      - name: Prepare dsh bundle (Full)
-        run: node scripts/prepare-dsh.mjs
+      - name: "Smoke: shared-server protocol (launch-token auth)"
+        run: node scripts/smoke.mjs
 
-      - name: Fetch official Node (Full)
-        run: node scripts/fetch-node.mjs
-
-      - name: "Smoke: bundled dsh boots and serves the Web UI"
-        run: node scripts/smoke.mjs --dsh resources/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js
-
-      - name: Package Full (NSIS)
-        run: npx electron-builder --config electron-builder.full.yml --publish never
-
-      - name: Package Slim (NSIS)
-        run: npx electron-builder --config electron-builder.slim.yml --publish never
+      - name: Package (NSIS)
+        run: npx electron-builder --config electron-builder.yml --publish never
 
       # electron-builder's own GitHub publisher is flaky (list-endpoint
       # eventual consistency causes 422 on re-create); publish explicitly.
@@ -70,17 +60,14 @@ jobs:
           $ver = (Get-Content package.json | ConvertFrom-Json).version
           $tag = "$env:GITHUB_REF_NAME"
           $files = @(
-            "release/full/dsh-desktop-full-$ver-setup.exe",
-            "release/full/dsh-desktop-full-$ver-setup.exe.blockmap",
-            "release/full/full.yml",
-            "release/slim/dsh-desktop-slim-$ver-setup.exe",
-            "release/slim/dsh-desktop-slim-$ver-setup.exe.blockmap",
-            "release/slim/slim.yml"
+            "release/dsh-desktop-$ver-setup.exe",
+            "release/dsh-desktop-$ver-setup.exe.blockmap",
+            "release/latest.yml"
           )
           foreach ($f in $files) { if (-not (Test-Path $f)) { throw "missing artifact: $f" } }
-          gh release create $tag $files --title "dsh-desktop $ver" --notes "dsh-desktop $ver — Full (自包含) / Slim (引导) 双版本。"
+          gh release create $tag $files --title "dsh-desktop $ver" --notes "dsh-desktop $ver — 纯壳桌面端（共享 dsh server，三端同步）。"
           if ($LASTEXITCODE -ne 0) { throw "gh release create failed" }
           Write-Host "published $tag with $($files.Count) assets"
 
       - name: List artifacts
-        run: Get-ChildItem release/full, release/slim -File | Select-Object FullName, Length
+        run: Get-ChildItem release -File | Select-Object FullName, Length

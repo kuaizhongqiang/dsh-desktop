@@ -1,23 +1,32 @@
-// Renderer app for ui.html views: bootstrap / log / settings / crash.
+// Renderer app for ui.html views: connect / log / settings.
 // Talks to main only through window.dshApi (contextBridge).
 
 interface LogEntry { id: number; ts: number; level: 'info' | 'warn' | 'error'; source: string; text: string }
-interface EnvStatus { node: { present: boolean; version: string | null; ok: boolean }; dsh: { present: boolean; version: string | null; ok: boolean }; ready: boolean }
-interface Settings { port: number; autoLaunch: boolean; closeToTray: boolean; dataDir: string; mirrorUrl: string; autoDownload: boolean; bootstrapDone: boolean }
+interface Settings { port: number; dataDir: string; launcherPath: string; autoLaunch: boolean; closeToTray: boolean }
+interface ConnectState {
+  status: 'checking' | 'connected' | 'no-server' | 'busy' | 'starting'
+  port: number
+  baseUrl: string
+  url: string | null
+  detail?: string
+  serverOwner?: string
+}
+interface ActionResult { ok: boolean; url?: string; error?: string }
 
 interface DshApi {
-  getState(): Promise<unknown>
+  getState(): Promise<{ appVersion: string; connect: ConnectState; launcherPath: string; settings: Settings; updateEnabled: boolean }>
   onEvent(cb: (ev: unknown) => void): () => void
   getSettings(): Promise<Settings>
   setSettings(p: Partial<Settings>): Promise<Settings>
   chooseDirectory(): Promise<string | null>
-  restartServer(): Promise<unknown>
+  serverConnect(): Promise<ActionResult>
+  serverStart(): Promise<ActionResult>
+  serverStop(): Promise<ActionResult>
+  serverOpenBrowser(): Promise<boolean>
+  launcherOpen(): Promise<boolean>
   getLogs(): Promise<LogEntry[]>
   clearLogs(): Promise<boolean>
   exportLogs(): Promise<string | null>
-  checkEnv(): Promise<EnvStatus>
-  runBootstrap(): Promise<{ ok: boolean; status: EnvStatus }>
-  cancelBootstrap(): Promise<boolean>
   checkUpdates(): Promise<void>
   downloadUpdate(): Promise<void>
   installUpdate(): Promise<void>
@@ -29,7 +38,7 @@ declare global { interface Window { dshApi: DshApi } }
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T
 const q = new URLSearchParams(location.search)
-const view = q.get('view') ?? 'bootstrap'
+const view = q.get('view') ?? 'connect'
 let logsCache: LogEntry[] = []
 let lastUpdatePhase = 'idle'
 let updateVersion = ''
@@ -43,6 +52,69 @@ function show(viewName: string): void {
 function logLine(entry: LogEntry): string {
   const t = new Date(entry.ts).toLocaleTimeString()
   return `[${t}] [${entry.level.toUpperCase()}] [${entry.source}] ${entry.text}`
+}
+
+const STATUS_LABEL: Record<ConnectState['status'], string> = {
+  checking: '正在检测共享 dsh server…',
+  connected: '已连接到 dsh server',
+  'no-server': '未检测到 dsh server',
+  busy: '端口被其他进程占用',
+  starting: '正在通过 dsh-launcher 启动服务…',
+}
+
+// ── connect view ──
+let lastLauncherPath = ''
+function initConnectView(): void {
+  const statusEl = $('connect-status')
+  const detailEl = $('connect-detail')
+  const metaEl = $('connect-meta')
+
+  const render = (s: ConnectState, launcherPath: string): void => {
+    statusEl.textContent = STATUS_LABEL[s.status] ?? s.status
+    statusEl.className = `connect-status ${s.status}`
+    detailEl.textContent = s.detail ?? ''
+    const rows: string[] = []
+    rows.push(`<div class="env-row"><span>端口</span><span class="muted">${s.port}（${s.baseUrl}）</span></div>`)
+    if (s.status === 'connected' && s.url) {
+      rows.push(`<div class="env-row ok"><span>服务地址</span><span class="muted">${s.url}</span></div>`)
+    }
+    if (s.serverOwner) {
+      rows.push(`<div class="env-row"><span>服务持有者</span><span class="muted">${s.serverOwner}（先启动的一端）</span></div>`)
+    }
+    rows.push(`<div class="env-row"><span>dsh-launcher</span><span class="muted">${launcherPath || '未找到（自动查找）'}</span></div>`)
+    metaEl.innerHTML = rows.join('')
+
+    $('btn-start').hidden = s.status !== 'no-server'
+    $('btn-reconnect').hidden = s.status === 'connected'
+    $('btn-stop').hidden = s.status !== 'connected'
+    $('btn-open-browser').hidden = !(s.url || s.baseUrl)
+  }
+
+  void window.dshApi.getState().then((s) => {
+    lastLauncherPath = s.launcherPath
+    render(s.connect, s.launcherPath)
+    // main drives connect() itself; we only render the state it pushes.
+  })
+  $('btn-start').addEventListener('click', async () => {
+    const btn = $<HTMLButtonElement>('btn-start')
+    btn.disabled = true
+    statusEl.textContent = STATUS_LABEL.starting
+    const res = await window.dshApi.serverStart()
+    if (!res.ok) {
+      detailEl.textContent = res.error ?? ''
+      btn.disabled = false
+    }
+    // on success main navigates this window to the dsh UI
+  })
+  $('btn-reconnect').addEventListener('click', () => { void window.dshApi.serverConnect() })
+  $('btn-stop').addEventListener('click', () => { void window.dshApi.serverStop() })
+  $('btn-open-browser').addEventListener('click', () => { void window.dshApi.serverOpenBrowser() })
+  $('btn-open-launcher').addEventListener('click', () => { void window.dshApi.launcherOpen() })
+
+  window.dshApi.onEvent((ev) => {
+    const e = ev as { type: string; state?: ConnectState }
+    if (e.type === 'connect' && e.state) render(e.state, lastLauncherPath)
+  })
 }
 
 // ── log view ──
@@ -73,27 +145,29 @@ function initSettingsView(): void {
     $<HTMLInputElement>('set-close-tray').checked = s.closeToTray
     $<HTMLInputElement>('set-autolaunch').checked = s.autoLaunch
     $<HTMLInputElement>('set-datadir').value = s.dataDir
-    $<HTMLInputElement>('set-mirror').value = s.mirrorUrl
-    $<HTMLInputElement>('set-autodownload').checked = s.autoDownload
+    $<HTMLInputElement>('set-launcher').value = s.launcherPath
   })
   form.addEventListener('submit', async (e) => {
     e.preventDefault()
     const patch: Partial<Settings> = {
-      port: Number($<HTMLInputElement>('set-port').value) || 0,
+      port: Number($<HTMLInputElement>('set-port').value) || 3080,
       closeToTray: $<HTMLInputElement>('set-close-tray').checked,
       autoLaunch: $<HTMLInputElement>('set-autolaunch').checked,
       dataDir: $<HTMLInputElement>('set-datadir').value.trim(),
-      mirrorUrl: $<HTMLInputElement>('set-mirror').value.trim(),
-      autoDownload: $<HTMLInputElement>('set-autodownload').checked,
+      launcherPath: $<HTMLInputElement>('set-launcher').value.trim(),
     }
     await window.dshApi.setSettings(patch)
     const saved = $('settings-saved')
     saved.hidden = false
     setTimeout(() => { saved.hidden = true }, 1500)
   })
-  $('btn-browse').addEventListener('click', async () => {
+  $('btn-browse-datadir').addEventListener('click', async () => {
     const dir = await window.dshApi.chooseDirectory()
     if (dir) $<HTMLInputElement>('set-datadir').value = dir
+  })
+  $('btn-browse-launcher').addEventListener('click', async () => {
+    const dir = await window.dshApi.chooseDirectory()
+    if (dir) $<HTMLInputElement>('set-launcher').value = dir
   })
   $('btn-update-check').addEventListener('click', () => void window.dshApi.checkUpdates())
   $('btn-update-download').addEventListener('click', () => void window.dshApi.downloadUpdate())
@@ -115,98 +189,26 @@ function renderUpdateStatus(): void {
   inst.hidden = lastUpdatePhase !== 'downloaded'
 }
 
-// ── bootstrap view ──
-function envRow(key: string, label: string, st: { present: boolean; version: string | null; ok: boolean }, need: string): string {
-  const cls = !st.present ? 'missing' : st.ok ? 'ok' : 'bad'
-  const detail = !st.present ? `未安装（需要 ${need}）` : st.ok ? st.version! : `${st.version}（需要 ${need}）`
-  return `<div class="env-row ${cls}"><span>${label}</span><span class="muted">${detail}</span></div>`
-}
-
-function initBootstrapView(): void {
-  const envBox = $('bootstrap-env')
-  const stepsBox = $('bootstrap-steps')
-  const note = $('bootstrap-note')
-  const renderEnv = (s: EnvStatus): void => {
-    envBox.innerHTML =
-      envRow('node', 'Node.js', s.node, '≥ 22.19') +
-      envRow('dsh', 'dsh', s.dsh, '@deepseek-ai/dsh')
-  }
-  void window.dshApi.checkEnv().then((s) => { renderEnv(s); note.textContent = s.ready ? '环境就绪，可以直接开始。' : '检测到缺失项，可点击「开始引导安装」。' })
-  $('btn-env-check').addEventListener('click', async () => {
-    const s = await window.dshApi.checkEnv()
-    renderEnv(s)
-    note.textContent = s.ready ? '环境就绪 ✓' : '仍有缺失项。'
-  })
-  $('btn-bootstrap-run').addEventListener('click', async () => {
-    if (!confirm('将执行自动下载/安装（Node.js 与全局 dsh）。继续？')) return
-    note.textContent = '引导中…（可在设置页配置镜像加速）'
-    await window.dshApi.runBootstrap()
-  })
-  $('btn-bootstrap-cancel').addEventListener('click', () => {
-    void window.dshApi.cancelBootstrap()
-    note.textContent = '已取消。可稍后重试。'
-  })
-  window.dshApi.onEvent((ev) => {
-    const e = ev as { type: string; ev?: { type: string; step?: { id: string; label: string; status: string; detail?: string }; ok?: boolean; status?: EnvStatus; progress?: { id: string; percent: number } } }
-    if (e.type !== 'bootstrap' || !e.ev) return
-    const be = e.ev
-    if (be.type === 'step' && be.step) {
-      const s = be.step
-      const badge = s.status === 'done' ? '✓' : s.status === 'error' ? '✗' : s.status === 'running' ? '…' : ''
-      const existing = stepsBox.querySelector(`[data-step="${s.id}"]`) as HTMLElement | null
-      const html = `<div class="env-row" data-step="${s.id}"><span>${badge} ${s.label}</span><span class="muted">${s.detail ?? ''}</span></div>`
-      if (existing) existing.outerHTML = html
-      else stepsBox.insertAdjacentHTML('beforeend', html)
-    }
-    if (be.type === 'progress' && be.progress) {
-      const row = stepsBox.querySelector(`[data-step="${be.progress.id}"] .muted`) as HTMLElement | null
-      if (row) row.textContent = `${be.progress.percent}%`
-    }
-    if (be.type === 'done') {
-      if (be.ok) { note.textContent = '环境就绪 ✓ 即将启动…'; setTimeout(() => location.reload(), 1200) }
-      else if (be.status) renderEnv(be.status)
-      else note.textContent = '引导未完成，请检查上方步骤。'
-    }
-  })
-}
-
-// ── crash view ──
-function initCrashView(): void {
-  const detail = q.get('detail')
-  $('crash-detail').textContent = detail ? decodeURIComponent(detail) : 'dsh server 已停止。'
-  $('btn-crash-restart').addEventListener('click', async () => {
-    await window.dshApi.restartServer()
-    location.reload()
-  })
-  $('btn-crash-logs').addEventListener('click', () => void window.dshApi.openView('log'))
-  $('btn-crash-quit').addEventListener('click', () => void window.dshApi.quitApp())
-}
-
 // ── global wiring ──
 function init(): void {
   show(view)
-  const badge = $('variant-badge')
-  const fb = $('foot-variant')
   void window.dshApi.getState().then((s) => {
-    const st = s as { variant: string; appVersion: string; server: { status: string; url: string | null } }
-    badge.textContent = st.variant
-    fb.textContent = `v${st.appVersion} · ${st.variant}`
-    $('server-badge').textContent = `server: ${st.server.status}`
-    $('foot-server').textContent = st.server.url ? `dsh: ${st.server.url}` : ''
+    $('server-badge').textContent = `server: ${s.connect.status}`
+    $('foot-server').textContent = s.connect.url
+      ? `dsh: ${s.connect.url}`
+      : s.connect.baseUrl
+        ? `dsh: ${s.connect.baseUrl}`
+        : ''
   })
   window.dshApi.onEvent((ev) => {
-    const e = ev as { type: string; status?: string; url?: string; detail?: string; settings?: Settings; status2?: { phase: string; version?: string } }
-    if (e.type === 'server-status') {
-      $('server-badge').textContent = `server: ${e.status ?? ''}`
-      $('foot-server').textContent = ''
+    const e = ev as { type: string; state?: ConnectState; status?: { phase: string; version?: string } }
+    if (e.type === 'connect' && e.state) {
+      $('server-badge').textContent = `server: ${e.state.status}`
+      $('foot-server').textContent = e.state.url ?? e.state.baseUrl ?? ''
     }
-    if (e.type === 'server-ready') $('foot-server').textContent = `dsh: ${e.url ?? ''}`
-    if (e.type === 'settings' && e.settings && view === 'settings') {
-      // refresh mirror/autodownload if changed elsewhere
-    }
-    if (e.type === 'update' && e.status2) {
-      if (e.status2.version) updateVersion = e.status2.version
-      lastUpdatePhase = e.status2.phase
+    if (e.type === 'update' && e.status) {
+      if (e.status.version) updateVersion = e.status.version
+      lastUpdatePhase = e.status.phase
       renderUpdateStatus()
       $('foot-update').textContent = lastUpdatePhase === 'downloaded' ? `更新就绪 ${updateVersion}` : ''
     }
@@ -217,6 +219,5 @@ function init(): void {
 
 if (view === 'log') initLogView()
 else if (view === 'settings') initSettingsView()
-else if (view === 'bootstrap') initBootstrapView()
-else if (view === 'crash') initCrashView()
+else initConnectView()
 init()
